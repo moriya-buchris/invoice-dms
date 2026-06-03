@@ -1,0 +1,4 @@
+.env
+node_modules/
+invoices.db
+google-credentials.json
