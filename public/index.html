@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>מערכת ניהול חשבוניות - Invoice DMS</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>מערכת ניהול חשבוניות - Invoice DMS</h1>
+      <p class="subtitle">OAuth2 — קבצים נשמרים ב-Google Drive שלך לפי ספק</p>
+
+      <div class="card">
+        <h2>הוספת חשבונית חדשה</h2>
+        <form id="add-invoice-form" enctype="multipart/form-data">
+          <div class="form-grid">
+            <div class="full-width">
+              <label for="supplier_name">שם בית עסק / ספק</label>
+              <input
+                type="text"
+                id="supplier_name"
+                name="supplier_name"
+                list="supplier-suggestions"
+                required
+                autocomplete="off"
+              />
+              <datalist id="supplier-suggestions"></datalist>
+            </div>
+            <div class="full-width">
+              <label for="document_type">סוג מסמך</label>
+              <input
+                type="text"
+                id="document_type"
+                name="document_type"
+                list="document-type-suggestions"
+                required
+                autocomplete="off"
+              />
+              <datalist id="document-type-suggestions"></datalist>
+            </div>
+            <div>
+              <label for="amount">סכום (₪)</label>
+              <input type="number" id="amount" name="amount" step="0.01" min="0" required />
+            </div>
+            <div>
+              <label for="invoice_date">תאריך חשבונית</label>
+              <input type="date" id="invoice_date" name="invoice_date" required />
+            </div>
+            <div class="full-width">
+              <label for="file_path">תמונה / קובץ חשבונית</label>
+              <input type="file" id="file_path" name="file_path" required />
+              <p class="field-hint">העלאה מהזיכרון ישירות ל-Drive (OAuth2).</p>
+            </div>
+          </div>
+          <p id="add-form-error" class="form-error hidden" role="alert"></p>
+          <button type="submit">הוסף חשבונית</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>סינון חשבוניות</h2>
+        <form id="filter-form">
+          <div class="form-grid">
+            <div>
+              <label for="filter_supplier">ספק</label>
+              <select id="filter_supplier" name="supplier">
+                <option value="">— הכל —</option>
+              </select>
+            </div>
+            <div>
+              <label for="filter_document_type">סוג מסמך</label>
+              <select id="filter_document_type" name="document_type">
+                <option value="">— הכל —</option>
+                <option value="חשבונית מס">חשבונית מס</option>
+                <option value="קבלה">קבלה</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn-filter">הצג תוצאות</button>
+            <button type="button" id="clear-filter" class="btn-clear">נקה סינון</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>חשבוניות שמורות</h2>
+        <p class="count" id="invoice-count">מוצגות: 0</p>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>ספק</th>
+              <th>סוג</th>
+              <th>סכום</th>
+              <th>תאריך</th>
+              <th>Drive</th>
+            </tr>
+          </thead>
+          <tbody id="invoices-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <script src="/script.js"></script>
+  </body>
+</html>
