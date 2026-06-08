@@ -4,9 +4,11 @@ const clearFilterBtn = document.getElementById('clear-filter');
 const invoicesTbody = document.getElementById('invoices-tbody');
 const invoiceCount = document.getElementById('invoice-count');
 const supplierSuggestions = document.getElementById('supplier-suggestions');
-const documentTypeSuggestions = document.getElementById('document-type-suggestions');
 const filterSupplier = document.getElementById('filter_supplier');
 const filterDocumentType = document.getElementById('filter_document_type');
+const filterStatus = document.getElementById('filter_status');
+const filterDateFrom = document.getElementById('filter_date_from');
+const filterDateTo = document.getElementById('filter_date_to');
 const addFormError = document.getElementById('add-form-error');
 
 function escapeHtml(value) {
@@ -18,6 +20,12 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+function statusBadgeClass(status) {
+  if (status === '🟢 שולם ומאושר לרואה חשבון') return 'status-approved';
+  if (status === '⚠️ שולם - חסרה חשבונית מס!') return 'status-warning';
+  return 'status-pending';
+}
+
 function formatAmount(amount) {
   return Number(amount).toLocaleString('he-IL', {
     minimumFractionDigits: 2,
@@ -25,12 +33,25 @@ function formatAmount(amount) {
   });
 }
 
-function renderFileLink(filePath) {
-  if (!filePath) return '—';
-  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-    return `<a href="${escapeHtml(filePath)}" target="_blank" rel="noopener">צפייה ב-Drive</a>`;
+function driveLinkForFileId(fileId) {
+  if (!fileId) return null;
+  if (fileId.startsWith('http://') || fileId.startsWith('https://')) {
+    return fileId;
   }
-  return escapeHtml(filePath);
+  return `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`;
+}
+
+function renderDocuments(documents) {
+  if (!documents?.length) return '—';
+  return documents
+    .map((doc) => {
+      const href = driveLinkForFileId(doc.drive_file_id);
+      if (!href) {
+        return `<span class="badge">${escapeHtml(doc.document_type)}</span>`;
+      }
+      return `<span class="badge"><a href="${escapeHtml(href)}" target="_blank" rel="noopener">${escapeHtml(doc.document_type)}</a></span>`;
+    })
+    .join(' ');
 }
 
 function populateDatalist(datalistEl, values) {
@@ -38,7 +59,7 @@ function populateDatalist(datalistEl, values) {
 }
 
 function populateSupplierFilter(suppliers, selected) {
-  const options = ['<option value="">— הכל —</option>'];
+  const options = ['<option value="">הכל</option>'];
   for (const name of suppliers) {
     const sel = name === selected ? ' selected' : '';
     options.push(`<option value="${escapeHtml(name)}"${sel}>${escapeHtml(name)}</option>`);
@@ -46,71 +67,133 @@ function populateSupplierFilter(suppliers, selected) {
   filterSupplier.innerHTML = options.join('');
 }
 
-function getFiltersFromForm() {
+const EMPTY_FILTERS = {
+  supplier: '',
+  document_type: '',
+  status: '',
+  date_from: '',
+  date_to: '',
+};
+
+function normalizeFilters(filters = {}) {
   return {
-    supplier: filterSupplier.value.trim(),
-    document_type: filterDocumentType.value.trim(),
+    supplier: filters.supplier?.trim() || '',
+    document_type: filters.document_type?.trim() || '',
+    status: filters.status?.trim() || '',
+    date_from: filters.date_from?.trim() || '',
+    date_to: filters.date_to?.trim() || '',
   };
+}
+
+function hasActiveFilters(filters) {
+  const f = normalizeFilters(filters);
+  return Boolean(f.supplier || f.document_type || f.status || f.date_from || f.date_to);
+}
+
+function applyFiltersToForm(filters) {
+  const f = normalizeFilters(filters);
+  filterSupplier.value = f.supplier;
+  filterDocumentType.value = f.document_type;
+  filterStatus.value = f.status;
+  filterDateFrom.value = f.date_from;
+  filterDateTo.value = f.date_to;
+}
+
+function getFiltersFromForm() {
+  return normalizeFilters({
+    supplier: filterSupplier.value,
+    document_type: filterDocumentType.value,
+    status: filterStatus.value,
+    date_from: filterDateFrom.value,
+    date_to: filterDateTo.value,
+  });
 }
 
 function getFiltersFromUrl() {
   const params = new URLSearchParams(window.location.search);
-  return {
-    supplier: params.get('supplier')?.trim() || '',
-    document_type: params.get('document_type')?.trim() || '',
-  };
+  return normalizeFilters({
+    supplier: params.get('supplier') || '',
+    document_type: params.get('document_type') || '',
+    status: params.get('status') || '',
+    date_from: params.get('date_from') || '',
+    date_to: params.get('date_to') || '',
+  });
+}
+
+function resolveFiltersForQuery(filters) {
+  if (!hasActiveFilters(filters)) {
+    return { ...EMPTY_FILTERS };
+  }
+  return normalizeFilters(filters);
 }
 
 function syncUrlWithFilters(filters) {
   const params = new URLSearchParams();
   if (filters.supplier) params.set('supplier', filters.supplier);
   if (filters.document_type) params.set('document_type', filters.document_type);
+  if (filters.status) params.set('status', filters.status);
+  if (filters.date_from) params.set('date_from', filters.date_from);
+  if (filters.date_to) params.set('date_to', filters.date_to);
   const qs = params.toString();
   const newUrl = qs ? `?${qs}` : window.location.pathname;
   window.history.replaceState({}, '', newUrl);
 }
 
-async function loadInvoices(filters) {
+async function loadExpenses(filters) {
+  const activeFilters = resolveFiltersForQuery(filters);
   const params = new URLSearchParams();
-  if (filters.supplier) params.set('supplier', filters.supplier);
-  if (filters.document_type) params.set('document_type', filters.document_type);
+  if (activeFilters.supplier) params.set('supplier', activeFilters.supplier);
+  if (activeFilters.document_type) params.set('document_type', activeFilters.document_type);
+  if (activeFilters.status) params.set('status', activeFilters.status);
+  if (activeFilters.date_from) params.set('date_from', activeFilters.date_from);
+  if (activeFilters.date_to) params.set('date_to', activeFilters.date_to);
 
-  const url = `/get-invoices${params.toString() ? `?${params}` : ''}`;
+  const url = `/get-expenses${params.toString() ? `?${params}` : ''}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error('שגיאה בטעינת החשבוניות');
-
   const data = await res.json();
-  const { invoices, suppliers, documentTypes, filters: serverFilters } = data;
-  const hasFilters = Boolean(serverFilters.supplier || serverFilters.documentType);
+  if (!res.ok) {
+    throw new Error(data.error || 'שגיאה בטעינת ההוצאות');
+  }
+
+  const { expenses, suppliers, filters: serverFilters } = data;
+  const hasFilters = Boolean(
+    serverFilters.supplier ||
+      serverFilters.documentType ||
+      serverFilters.status ||
+      serverFilters.dateFrom ||
+      serverFilters.dateTo
+  );
 
   populateDatalist(supplierSuggestions, suppliers);
-  populateDatalist(documentTypeSuggestions, documentTypes);
   populateSupplierFilter(suppliers, serverFilters.supplier);
   filterDocumentType.value = serverFilters.documentType || '';
+  filterStatus.value = serverFilters.status || '';
+  filterDateFrom.value = serverFilters.dateFrom || '';
+  filterDateTo.value = serverFilters.dateTo || '';
 
   const emptyMessage = hasFilters
-    ? 'לא נמצאו חשבוניות לפי הסינון.'
-    : 'אין חשבוניות עדיין.';
+    ? 'לא נמצאו הוצאות לפי הסינון.'
+    : 'אין הוצאות עדיין.';
 
-  if (invoices.length === 0) {
+  if (expenses.length === 0) {
     invoicesTbody.innerHTML = `<tr><td colspan="6" class="empty">${emptyMessage}</td></tr>`;
   } else {
-    invoicesTbody.innerHTML = invoices
+    invoicesTbody.innerHTML = expenses
       .map(
         (row) => `
         <tr>
           <td>${escapeHtml(row.id)}</td>
           <td>${escapeHtml(row.supplier_name)}</td>
-          <td><span class="badge">${escapeHtml(row.document_type)}</span></td>
           <td class="amount">₪${escapeHtml(formatAmount(row.amount))}</td>
-          <td>${escapeHtml(row.invoice_date)}</td>
-          <td class="file-path">${renderFileLink(row.file_path)}</td>
+          <td>${escapeHtml(row.expense_date)}</td>
+          <td><span class="badge ${statusBadgeClass(row.status)}">${escapeHtml(row.status)}</span></td>
+          <td class="file-path">${renderDocuments(row.documents)}</td>
         </tr>`
       )
       .join('');
   }
 
-  invoiceCount.textContent = `מוצגות: ${invoices.length}${hasFilters ? ' (מסונן)' : ''}`;
+  invoiceCount.textContent = `מוצגות: ${expenses.length}${hasFilters ? ' (מסונן)' : ''}`;
 }
 
 function showAddError(message) {
@@ -127,6 +210,13 @@ addForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   hideAddError();
 
+  const expenseDate = document.getElementById('expense_date')?.value?.trim();
+  const today = new Date().toISOString().slice(0, 10);
+  if (expenseDate && expenseDate > today) {
+    showAddError('תאריך הוצאה לא יכול להיות בעתיד.');
+    return;
+  }
+
   const submitBtn = addForm.querySelector('button[type="submit"]');
   submitBtn.disabled = true;
 
@@ -140,13 +230,14 @@ addForm.addEventListener('submit', async (e) => {
 
     if (res.redirected || res.ok) {
       addForm.reset();
-      const filters = getFiltersFromUrl();
-      await loadInvoices(filters);
+      setExpenseDateMaxToday();
+      const filters = resolveFiltersForQuery(getFiltersFromUrl());
+      await loadExpenses(filters);
       return;
     }
 
     const text = await res.text();
-    showAddError(text || 'שגיאה בהוספת חשבונית');
+    showAddError(text || 'שגיאה בהוספת מסמך');
   } catch (err) {
     showAddError(err.message || 'שגיאת רשת');
   } finally {
@@ -156,23 +247,32 @@ addForm.addEventListener('submit', async (e) => {
 
 filterForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const filters = getFiltersFromForm();
+  const filters = resolveFiltersForQuery(getFiltersFromForm());
+  applyFiltersToForm(filters);
   syncUrlWithFilters(filters);
-  await loadInvoices(filters);
+  await loadExpenses(filters);
 });
 
 clearFilterBtn.addEventListener('click', async () => {
-  filterSupplier.value = '';
-  filterDocumentType.value = '';
-  syncUrlWithFilters({ supplier: '', document_type: '' });
-  await loadInvoices({ supplier: '', document_type: '' });
+  const filters = { ...EMPTY_FILTERS };
+  applyFiltersToForm(filters);
+  syncUrlWithFilters(filters);
+  await loadExpenses(filters);
 });
 
+function setExpenseDateMaxToday() {
+  const expenseDateInput = document.getElementById('expense_date');
+  if (expenseDateInput) {
+    expenseDateInput.max = new Date().toISOString().slice(0, 10);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-  const filters = getFiltersFromUrl();
-  filterSupplier.value = filters.supplier;
-  filterDocumentType.value = filters.document_type;
-  loadInvoices(filters).catch((err) => {
+  setExpenseDateMaxToday();
+  const filters = resolveFiltersForQuery(getFiltersFromUrl());
+  applyFiltersToForm(filters);
+  syncUrlWithFilters(filters);
+  loadExpenses(filters).catch((err) => {
     invoicesTbody.innerHTML = `<tr><td colspan="6" class="empty">${escapeHtml(err.message)}</td></tr>`;
   });
 });

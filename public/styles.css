@@ -205,3 +205,18 @@ tr:hover td {
 .form-error.hidden {
   display: none;
 }
+
+.badge.status-approved {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge.status-warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badge.status-pending {
+  background: #e8eeff;
+  color: #3a56d4;
+}

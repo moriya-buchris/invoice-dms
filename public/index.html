@@ -3,16 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>מערכת ניהול חשבוניות - Invoice DMS</title>
+    <title>מערכת ניהול הוצאות - Invoice DMS</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <div class="container">
-      <h1>מערכת ניהול חשבוניות - Invoice DMS</h1>
-      <p class="subtitle">OAuth2 — קבצים נשמרים ב-Google Drive שלך לפי ספק</p>
+      <h1>מערכת ניהול הוצאות - Invoice DMS</h1>
+      <p class="subtitle">עסקאות מקובצות — חשבונית + קבלה לאותה הוצאה</p>
 
       <div class="card">
-        <h2>הוספת חשבונית חדשה</h2>
+        <h2>הוספת מסמך להוצאה</h2>
         <form id="add-invoice-form" enctype="multipart/form-data">
           <div class="form-grid">
             <div class="full-width">
@@ -29,52 +29,67 @@
             </div>
             <div class="full-width">
               <label for="document_type">סוג מסמך</label>
-              <input
-                type="text"
-                id="document_type"
-                name="document_type"
-                list="document-type-suggestions"
-                required
-                autocomplete="off"
-              />
-              <datalist id="document-type-suggestions"></datalist>
+              <select id="document_type" name="document_type" required>
+                <option value="">— בחר —</option>
+                <option value="חשבונית מס">חשבונית מס</option>
+                <option value="קבלה">קבלה</option>
+                <option value="חשבונית מס / קבלה">חשבונית מס / קבלה</option>
+              </select>
             </div>
             <div>
               <label for="amount">סכום (₪)</label>
               <input type="number" id="amount" name="amount" step="0.01" min="0" required />
             </div>
             <div>
-              <label for="invoice_date">תאריך חשבונית</label>
-              <input type="date" id="invoice_date" name="invoice_date" required />
+              <label for="expense_date">תאריך הוצאה</label>
+              <input type="date" id="expense_date" name="expense_date" required />
             </div>
             <div class="full-width">
-              <label for="file_path">תמונה / קובץ חשבונית</label>
-              <input type="file" id="file_path" name="file_path" required />
-              <p class="field-hint">העלאה מהזיכרון ישירות ל-Drive (OAuth2).</p>
+              <label for="file_path">תמונה / קובץ (אופציונלי)</label>
+              <input type="file" id="file_path" name="file_path" />
+              <p class="field-hint">קבצים נשמרים ישירות בתיקיית הספק בשם: תאריך_סכום_סוגמסמך. אם קיימת הוצאה עם אותו ספק, סכום וחודש — המסמך יצורף לאותה עסקה.</p>
             </div>
           </div>
           <p id="add-form-error" class="form-error hidden" role="alert"></p>
-          <button type="submit">הוסף חשבונית</button>
+          <button type="submit">הוסף מסמך</button>
         </form>
       </div>
 
       <div class="card">
-        <h2>סינון חשבוניות</h2>
+        <h2>סינון הוצאות</h2>
         <form id="filter-form">
           <div class="form-grid">
             <div>
               <label for="filter_supplier">ספק</label>
               <select id="filter_supplier" name="supplier">
-                <option value="">— הכל —</option>
+                <option value="">הכל</option>
               </select>
             </div>
             <div>
               <label for="filter_document_type">סוג מסמך</label>
               <select id="filter_document_type" name="document_type">
-                <option value="">— הכל —</option>
+                <option value="">הכל</option>
                 <option value="חשבונית מס">חשבונית מס</option>
                 <option value="קבלה">קבלה</option>
+                <option value="חשבונית מס / קבלה">חשבונית מס / קבלה</option>
               </select>
+            </div>
+            <div>
+              <label for="filter_status">סטטוס</label>
+              <select id="filter_status" name="status">
+                <option value="">הכל</option>
+                <option value="ממתין לתשלום">ממתין לתשלום</option>
+                <option value="⚠️ שולם - חסרה חשבונית מס!">⚠️ שולם - חסרה חשבונית מס!</option>
+                <option value="🟢 שולם ומאושר לרואה חשבון">🟢 שולם ומאושר לרואה חשבון</option>
+              </select>
+            </div>
+            <div>
+              <label for="filter_date_from">מתאריך</label>
+              <input type="date" id="filter_date_from" name="date_from" />
+            </div>
+            <div>
+              <label for="filter_date_to">עד תאריך</label>
+              <input type="date" id="filter_date_to" name="date_to" />
             </div>
           </div>
           <div class="form-actions">
@@ -85,17 +100,17 @@
       </div>
 
       <div class="card">
-        <h2>חשבוניות שמורות</h2>
+        <h2>הוצאות שמורות</h2>
         <p class="count" id="invoice-count">מוצגות: 0</p>
         <table>
           <thead>
             <tr>
               <th>#</th>
               <th>ספק</th>
-              <th>סוג</th>
               <th>סכום</th>
               <th>תאריך</th>
-              <th>Drive</th>
+              <th>סטטוס</th>
+              <th>מסמכים</th>
             </tr>
           </thead>
           <tbody id="invoices-tbody"></tbody>

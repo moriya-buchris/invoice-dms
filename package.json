@@ -4,7 +4,10 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "migrate": "node -e \"require('dotenv').config({quiet:true}); require('./db/migrations/migrate').runMigrations();\"",
+    "postinstall": "npm rebuild better-sqlite3",
+    "rebuild:sqlite": "npm rebuild better-sqlite3"
   },
   "keywords": [],
   "author": "",
