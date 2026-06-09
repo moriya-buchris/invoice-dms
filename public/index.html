@@ -111,12 +111,67 @@
               <th>תאריך</th>
               <th>סטטוס</th>
               <th>מסמכים</th>
+              <th>פעולות</th>
             </tr>
           </thead>
           <tbody id="invoices-tbody"></tbody>
         </table>
       </div>
     </div>
+    <div id="edit-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title">
+      <div class="modal-backdrop" data-close-modal></div>
+      <div class="modal-card">
+        <h2 id="edit-modal-title">עריכת הוצאה</h2>
+        <form id="edit-expense-form" enctype="multipart/form-data">
+          <input type="hidden" id="edit_expense_id" name="expense_id" />
+          <div class="form-grid">
+            <div class="full-width">
+              <label for="edit_supplier_name">שם בית עסק / ספק</label>
+              <input
+                type="text"
+                id="edit_supplier_name"
+                name="supplier_name"
+                list="supplier-suggestions"
+                required
+                autocomplete="off"
+              />
+            </div>
+            <div>
+              <label for="edit_amount">סכום (₪)</label>
+              <input type="number" id="edit_amount" name="amount" step="0.01" min="0" required />
+            </div>
+            <div>
+              <label for="edit_expense_date">תאריך הוצאה</label>
+              <input type="date" id="edit_expense_date" name="expense_date" required />
+            </div>
+            <div class="full-width">
+              <label for="edit_status_display">סטטוס נוכחי</label>
+              <input type="text" id="edit_status_display" readonly class="readonly-input" />
+              <p class="field-hint">הסטטוס מתעדכן אוטומטית לפי המסמכים המצורפים.</p>
+            </div>
+            <div class="full-width">
+              <label for="edit_document_type">סוג מסמך (להעלאת קובץ נוסף)</label>
+              <select id="edit_document_type" name="document_type">
+                <option value="">— ללא קובץ חדש —</option>
+                <option value="חשבונית מס">חשבונית מס</option>
+                <option value="קבלה">קבלה</option>
+                <option value="חשבונית מס / קבלה">חשבונית מס / קבלה</option>
+              </select>
+            </div>
+            <div class="full-width">
+              <label for="edit_file_path">קובץ נוסף (אופציונלי)</label>
+              <input type="file" id="edit_file_path" name="file_path" />
+            </div>
+          </div>
+          <p id="edit-form-error" class="form-error hidden" role="alert"></p>
+          <div class="modal-actions">
+            <button type="button" class="btn-clear" data-close-modal>ביטול</button>
+            <button type="submit">שמור שינויים</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
     <script src="/script.js"></script>
   </body>
 </html>

@@ -1,4 +1,5 @@
 const { google } = require('googleapis');
+const driveService = require('./drive.service');
 
 const {
   STATUS_APPROVED,
@@ -295,7 +296,187 @@ async function syncExpenseToSupplierSheet(
   return rowNumber || null;
 }
 
+async function deleteExpenseRowFromSupplierSheet(
+  auth,
+  folderId,
+  supplierName,
+  expense
+) {
+  const spreadsheetId = await findSupplierSpreadsheet(auth, folderId, supplierName);
+  if (!spreadsheetId) {
+    return false;
+  }
+
+  const sheets = google.sheets({ version: 'v4', auth });
+  const sheetTitle = await getFirstSheetTitle(sheets, spreadsheetId);
+  const allRows = await readSheetRows(sheets, spreadsheetId, sheetTitle);
+  const { dataRows } = splitSheetRows(allRows);
+
+  let dataIndex = findExpenseRowIndex(dataRows, expense);
+
+  if (dataIndex === -1 && expense.sheet_row) {
+    const indexFromStoredRow = expense.sheet_row - SHEET_DATA_START_ROW;
+    if (indexFromStoredRow >= 0 && indexFromStoredRow < dataRows.length) {
+      dataIndex = indexFromStoredRow;
+    }
+  }
+
+  if (dataIndex === -1) {
+    console.warn(
+      `Sheet row not found for expense #${expense.id} in "${buildSupplierSpreadsheetName(supplierName)}"`
+    );
+    return false;
+  }
+
+  dataRows.splice(dataIndex, 1);
+  await writeSheetWithDynamicSummary(sheets, spreadsheetId, sheetTitle, dataRows);
+
+  console.log(
+    `Removed expense #${expense.id} from "${buildSupplierSpreadsheetName(supplierName)}"`
+  );
+
+  return true;
+}
+
+function buildExpenseRowData(expense) {
+  return [
+    formatInvoiceDateHebrew(expense.expense_date),
+    expense.supplier_name,
+    expense.amount,
+    expense.status,
+  ];
+}
+
+function resolveExpenseDataIndex(dataRows, expense, rowNumber = null) {
+  if (rowNumber) {
+    const indexFromRow = rowNumber - SHEET_DATA_START_ROW;
+    if (indexFromRow >= 0 && indexFromRow < dataRows.length) {
+      return indexFromRow;
+    }
+  }
+
+  return findExpenseRowIndex(dataRows, expense);
+}
+
+async function updateSheetRow(auth, spreadsheetId, rowNumber, rowData) {
+  const sheets = google.sheets({ version: 'v4', auth });
+  const sheetTitle = await getFirstSheetTitle(sheets, spreadsheetId);
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: sheetRange(sheetTitle, `A${rowNumber}:D${rowNumber}`),
+    valueInputOption: 'USER_ENTERED',
+    requestBody: {
+      values: [rowData],
+    },
+  });
+
+  return true;
+}
+
+async function updateExpenseRowInSupplierSheet(
+  auth,
+  folderId,
+  supplierName,
+  expense,
+  previousExpense
+) {
+  const spreadsheetId = await getOrCreateSupplierSpreadsheet(auth, folderId, supplierName);
+  const sheets = google.sheets({ version: 'v4', auth });
+  const sheetTitle = await getFirstSheetTitle(sheets, spreadsheetId);
+  const allRows = await readSheetRows(sheets, spreadsheetId, sheetTitle);
+  const { dataRows } = splitSheetRows(allRows);
+
+  let dataIndex = resolveExpenseDataIndex(
+    dataRows,
+    previousExpense,
+    previousExpense.sheet_row
+  );
+
+  const rowData = buildExpenseRowData(expense);
+
+  if (dataIndex >= 0) {
+    dataRows[dataIndex] = rowData;
+  } else {
+    dataRows.push(rowData);
+    dataIndex = dataRows.length - 1;
+  }
+
+  await writeSheetWithDynamicSummary(sheets, spreadsheetId, sheetTitle, dataRows);
+
+  console.log(
+    `Updated expense #${expense.id} in "${buildSupplierSpreadsheetName(supplierName)}"`
+  );
+
+  return sheetRowNumberForDataIndex(dataIndex);
+}
+
+async function updateExpenseInSupplierSheet(auth, expense, previousExpense) {
+  const supplierChanged = previousExpense.supplier_name !== expense.supplier_name;
+
+  if (supplierChanged) {
+    const oldFolderId = await driveService.findOrCreateSupplierFolder(
+      auth,
+      previousExpense.supplier_name
+    );
+    const oldSpreadsheetId = await findSupplierSpreadsheet(
+      auth,
+      oldFolderId,
+      previousExpense.supplier_name
+    );
+
+    if (oldSpreadsheetId) {
+      await deleteSheetRow(auth, oldSpreadsheetId, previousExpense, previousExpense.sheet_row);
+    }
+
+    const newFolderId = await driveService.findOrCreateSupplierFolder(
+      auth,
+      expense.supplier_name
+    );
+
+    return syncExpenseToSupplierSheet(auth, newFolderId, expense.supplier_name, expense, {
+      isNew: true,
+    });
+  }
+
+  const folderId = await driveService.findOrCreateSupplierFolder(auth, expense.supplier_name);
+
+  return updateExpenseRowInSupplierSheet(
+    auth,
+    folderId,
+    expense.supplier_name,
+    expense,
+    previousExpense
+  );
+}
+
+async function deleteSheetRow(auth, spreadsheetId, expense, rowNumber = null) {
+  const sheets = google.sheets({ version: 'v4', auth });
+  const sheetTitle = await getFirstSheetTitle(sheets, spreadsheetId);
+  const allRows = await readSheetRows(sheets, spreadsheetId, sheetTitle);
+  const { dataRows } = splitSheetRows(allRows);
+
+  let dataIndex = rowNumber ? rowNumber - SHEET_DATA_START_ROW : -1;
+  if (dataIndex < 0 || dataIndex >= dataRows.length) {
+    dataIndex = findExpenseRowIndex(dataRows, expense);
+  }
+
+  if (dataIndex === -1) {
+    return false;
+  }
+
+  dataRows.splice(dataIndex, 1);
+  await writeSheetWithDynamicSummary(sheets, spreadsheetId, sheetTitle, dataRows);
+  return true;
+}
+
 module.exports = {
   syncExpenseToSupplierSheet,
+  updateSheetRow,
+  updateExpenseRowInSupplierSheet,
+  updateExpenseInSupplierSheet,
+  deleteExpenseRowFromSupplierSheet,
+  deleteSheetRow,
   buildSupplierSpreadsheetName,
+  findSupplierSpreadsheet,
 };

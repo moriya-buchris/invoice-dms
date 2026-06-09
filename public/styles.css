@@ -220,3 +220,136 @@ tr:hover td {
   background: #e8eeff;
   color: #3a56d4;
 }
+
+.actions-cell {
+  text-align: center;
+  white-space: nowrap;
+  width: 6rem;
+}
+
+.btn-edit {
+  border: none;
+  background: #e8eeff;
+  color: #3a56d4;
+  border-radius: 8px;
+  padding: 0.35rem 0.55rem;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  margin-inline-end: 0.25rem;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.btn-edit:hover:not(:disabled) {
+  background: #dbe4ff;
+  transform: scale(1.05);
+}
+
+.btn-edit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.readonly-input {
+  background: #f4f7fb;
+  color: #5c6b7a;
+  cursor: not-allowed;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(22, 33, 62, 0.45);
+}
+
+.modal-card {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 560px);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 16px 48px rgba(22, 33, 62, 0.2);
+  padding: 1.5rem;
+}
+
+.modal-card h2 {
+  margin-bottom: 1rem;
+  font-size: 1.15rem;
+  color: #0f3460;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-start;
+  margin-top: 1rem;
+}
+
+.btn-delete {
+  border: none;
+  background: #fee2e2;
+  color: #b91c1c;
+  border-radius: 8px;
+  padding: 0.35rem 0.55rem;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.btn-delete:hover:not(:disabled) {
+  background: #fecaca;
+  transform: scale(1.05);
+}
+
+.btn-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  padding: 0.85rem 1.25rem;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(22, 33, 62, 0.15);
+  max-width: min(90vw, 420px);
+  text-align: center;
+}
+
+.toast.hidden {
+  display: none;
+}
+
+.toast-success {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.toast-error {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}

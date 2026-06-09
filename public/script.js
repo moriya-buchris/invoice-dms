@@ -10,6 +10,19 @@ const filterStatus = document.getElementById('filter_status');
 const filterDateFrom = document.getElementById('filter_date_from');
 const filterDateTo = document.getElementById('filter_date_to');
 const addFormError = document.getElementById('add-form-error');
+const toastEl = document.getElementById('toast');
+const editModal = document.getElementById('edit-modal');
+const editForm = document.getElementById('edit-expense-form');
+const editFormError = document.getElementById('edit-form-error');
+const editExpenseId = document.getElementById('edit_expense_id');
+const editSupplierName = document.getElementById('edit_supplier_name');
+const editAmount = document.getElementById('edit_amount');
+const editExpenseDate = document.getElementById('edit_expense_date');
+const editStatusDisplay = document.getElementById('edit_status_display');
+const editDocumentType = document.getElementById('edit_document_type');
+const editFilePath = document.getElementById('edit_file_path');
+
+let cachedExpenses = [];
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -39,6 +52,19 @@ function driveLinkForFileId(fileId) {
     return fileId;
   }
   return `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`;
+}
+
+let toastTimer = null;
+
+function showToast(message, isError = false) {
+  if (!toastEl) return;
+  toastEl.textContent = message;
+  toastEl.classList.remove('hidden', 'toast-error', 'toast-success');
+  toastEl.classList.add(isError ? 'toast-error' : 'toast-success');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toastEl.classList.add('hidden');
+  }, 3500);
 }
 
 function renderDocuments(documents) {
@@ -156,6 +182,7 @@ async function loadExpenses(filters) {
   }
 
   const { expenses, suppliers, filters: serverFilters } = data;
+  cachedExpenses = expenses;
   const hasFilters = Boolean(
     serverFilters.supplier ||
       serverFilters.documentType ||
@@ -176,18 +203,34 @@ async function loadExpenses(filters) {
     : 'אין הוצאות עדיין.';
 
   if (expenses.length === 0) {
-    invoicesTbody.innerHTML = `<tr><td colspan="6" class="empty">${emptyMessage}</td></tr>`;
+    invoicesTbody.innerHTML = `<tr><td colspan="7" class="empty">${emptyMessage}</td></tr>`;
   } else {
     invoicesTbody.innerHTML = expenses
       .map(
         (row) => `
-        <tr>
+        <tr data-expense-id="${escapeHtml(row.id)}">
           <td>${escapeHtml(row.id)}</td>
           <td>${escapeHtml(row.supplier_name)}</td>
           <td class="amount">₪${escapeHtml(formatAmount(row.amount))}</td>
           <td>${escapeHtml(row.expense_date)}</td>
           <td><span class="badge ${statusBadgeClass(row.status)}">${escapeHtml(row.status)}</span></td>
           <td class="file-path">${renderDocuments(row.documents)}</td>
+          <td class="actions-cell">
+            <button
+              type="button"
+              class="btn-edit"
+              data-expense-id="${escapeHtml(row.id)}"
+              title="ערוך הוצאה"
+              aria-label="ערוך הוצאה מספר ${escapeHtml(row.id)}"
+            >✏️</button>
+            <button
+              type="button"
+              class="btn-delete"
+              data-expense-id="${escapeHtml(row.id)}"
+              title="מחק הוצאה"
+              aria-label="מחק הוצאה מספר ${escapeHtml(row.id)}"
+            >🗑️</button>
+          </td>
         </tr>`
       )
       .join('');
@@ -267,12 +310,146 @@ function setExpenseDateMaxToday() {
   }
 }
 
+async function deleteExpenseById(expenseId, buttonEl) {
+  if (!window.confirm('למחוק את ההוצאה הזו? הפעולה תסיר גם את הקבצים ב-Drive ואת השורה בגיליון הספק.')) {
+    return;
+  }
+
+  if (buttonEl) {
+    buttonEl.disabled = true;
+  }
+
+  try {
+    const res = await fetch(`/api/expenses/${encodeURIComponent(expenseId)}`, {
+      method: 'DELETE',
+      headers: { Accept: 'application/json' },
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(data.error || 'שגיאה במחיקת ההוצאה');
+    }
+
+    const row = invoicesTbody.querySelector(`tr[data-expense-id="${expenseId}"]`);
+    if (row) {
+      row.remove();
+    }
+
+    const filters = resolveFiltersForQuery(getFiltersFromUrl());
+    await loadExpenses(filters);
+    showToast(data.message || 'ההוצאה נמחקה בהצלחה.');
+  } catch (err) {
+    showToast(err.message || 'שגיאה במחיקה', true);
+    if (buttonEl) {
+      buttonEl.disabled = false;
+    }
+  }
+}
+
+function showEditError(message) {
+  editFormError.textContent = message;
+  editFormError.classList.remove('hidden');
+}
+
+function hideEditError() {
+  editFormError.textContent = '';
+  editFormError.classList.add('hidden');
+}
+
+function openEditModal(expense) {
+  hideEditError();
+  editExpenseId.value = expense.id;
+  editSupplierName.value = expense.supplier_name;
+  editAmount.value = expense.amount;
+  editExpenseDate.value = expense.expense_date;
+  editExpenseDate.max = new Date().toISOString().slice(0, 10);
+  editStatusDisplay.value = expense.status;
+  editDocumentType.value = '';
+  editFilePath.value = '';
+  editModal.classList.remove('hidden');
+}
+
+function closeEditModal() {
+  editModal.classList.add('hidden');
+  editForm.reset();
+  hideEditError();
+}
+
+editModal?.querySelectorAll('[data-close-modal]').forEach((el) => {
+  el.addEventListener('click', closeEditModal);
+});
+
+editForm?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  hideEditError();
+
+  const expenseId = editExpenseId.value;
+  const expenseDate = editExpenseDate.value?.trim();
+  const today = new Date().toISOString().slice(0, 10);
+  if (expenseDate && expenseDate > today) {
+    showEditError('תאריך הוצאה לא יכול להיות בעתיד.');
+    return;
+  }
+
+  if (editFilePath.files.length > 0 && !editDocumentType.value) {
+    showEditError('יש לבחור סוג מסמך בעת העלאת קובץ.');
+    return;
+  }
+
+  const submitBtn = editForm.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+
+  try {
+    const formData = new FormData(editForm);
+    formData.delete('expense_id');
+
+    const res = await fetch(`/api/expenses/${encodeURIComponent(expenseId)}`, {
+      method: 'PUT',
+      headers: { Accept: 'application/json' },
+      body: formData,
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(data.error || 'שגיאה בעדכון ההוצאה');
+    }
+
+    closeEditModal();
+    const filters = resolveFiltersForQuery(getFiltersFromUrl());
+    await loadExpenses(filters);
+    showToast(data.message || 'ההוצאה עודכנה בהצלחה.');
+  } catch (err) {
+    showEditError(err.message || 'שגיאת רשת');
+  } finally {
+    submitBtn.disabled = false;
+  }
+});
+
+invoicesTbody.addEventListener('click', (e) => {
+  const editBtn = e.target.closest('.btn-edit');
+  if (editBtn) {
+    const expenseId = Number(editBtn.dataset.expenseId);
+    const expense = cachedExpenses.find((row) => row.id === expenseId);
+    if (expense) {
+      openEditModal(expense);
+    }
+    return;
+  }
+
+  const deleteBtn = e.target.closest('.btn-delete');
+  if (!deleteBtn) return;
+  const expenseId = deleteBtn.dataset.expenseId;
+  if (expenseId) {
+    deleteExpenseById(expenseId, deleteBtn);
+  }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
   setExpenseDateMaxToday();
   const filters = resolveFiltersForQuery(getFiltersFromUrl());
   applyFiltersToForm(filters);
   syncUrlWithFilters(filters);
   loadExpenses(filters).catch((err) => {
-    invoicesTbody.innerHTML = `<tr><td colspan="6" class="empty">${escapeHtml(err.message)}</td></tr>`;
+    invoicesTbody.innerHTML = `<tr><td colspan="7" class="empty">${escapeHtml(err.message)}</td></tr>`;
   });
 });

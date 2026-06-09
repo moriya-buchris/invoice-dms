@@ -9,6 +9,10 @@ const getDocumentsForExpenseStmt = db.prepare(`
   SELECT * FROM expense_documents WHERE expense_id = @expense_id ORDER BY id
 `);
 
+const deleteByExpenseIdStmt = db.prepare(`
+  DELETE FROM expense_documents WHERE expense_id = @expense_id
+`);
+
 function insert({ expenseId, documentType, driveFileId = null }) {
   insertExpenseDocumentStmt.run({
     expense_id: expenseId,
@@ -21,7 +25,12 @@ function findByExpenseId(expenseId) {
   return getDocumentsForExpenseStmt.all({ expense_id: expenseId });
 }
 
+function deleteByExpenseId(expenseId) {
+  return deleteByExpenseIdStmt.run({ expense_id: expenseId }).changes;
+}
+
 module.exports = {
   insert,
   findByExpenseId,
+  deleteByExpenseId,
 };

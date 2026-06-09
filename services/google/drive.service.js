@@ -97,8 +97,79 @@ async function uploadExpenseDocument({
   };
 }
 
+function parseDriveFileId(fileRef) {
+  const trimmed = String(fileRef || '').trim();
+  if (!trimmed) return null;
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  const match = trimmed.match(/\/file\/d\/([^/]+)/);
+  return match?.[1] || null;
+}
+
+async function moveFile(fileId, targetFolderId, auth = null) {
+  const resolvedId = parseDriveFileId(fileId);
+  if (!resolvedId) {
+    throw new Error('Invalid Drive file id.');
+  }
+  if (!targetFolderId) {
+    throw new Error('Target folder id is required.');
+  }
+
+  const client = auth || (await getAuth());
+  const drive = google.drive({ version: 'v3', auth: client });
+
+  const fileMeta = await drive.files.get({
+    fileId: resolvedId,
+    fields: 'parents',
+    supportsAllDrives: true,
+  });
+
+  const previousParents = fileMeta.data.parents || [];
+  if (previousParents.includes(targetFolderId)) {
+    return resolvedId;
+  }
+
+  await drive.files.update({
+    fileId: resolvedId,
+    addParents: targetFolderId,
+    removeParents: previousParents.join(','),
+    fields: 'id, parents',
+    supportsAllDrives: true,
+  });
+
+  return resolvedId;
+}
+
+async function deleteFile(fileId, auth = null) {
+  const resolvedId = parseDriveFileId(fileId);
+  if (!resolvedId) {
+    return false;
+  }
+
+  const client = auth || (await getAuth());
+  const drive = google.drive({ version: 'v3', auth: client });
+
+  try {
+    await drive.files.delete({
+      fileId: resolvedId,
+      supportsAllDrives: true,
+    });
+    return true;
+  } catch (error) {
+    if (error.code === 404 || error.status === 404) {
+      console.warn(`Drive file already missing: ${resolvedId}`);
+      return false;
+    }
+    throw error;
+  }
+}
+
 module.exports = {
   buildSmartDriveFileName,
   findOrCreateSupplierFolder,
   uploadExpenseDocument,
+  parseDriveFileId,
+  moveFile,
+  deleteFile,
 };

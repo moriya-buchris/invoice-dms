@@ -12,5 +12,11 @@ router.post(
   upload.single('file_path'),
   asyncHandler(expenseController.addExpense)
 );
+router.put(
+  '/api/expenses/:id',
+  upload.single('file_path'),
+  asyncHandler(expenseController.updateExpense)
+);
+router.delete('/api/expenses/:id', asyncHandler(expenseController.deleteExpense));
 
 module.exports = router;

@@ -71,6 +71,17 @@ const findMatchForInvoiceStmt = db.prepare(`
 
 const getExpenseByIdStmt = db.prepare('SELECT * FROM expenses WHERE id = @id');
 
+const deleteExpenseStmt = db.prepare('DELETE FROM expenses WHERE id = @id');
+
+const updateExpenseStmt = db.prepare(`
+  UPDATE expenses
+  SET supplier_name = @supplier_name,
+      amount = @amount,
+      expense_date = @expense_date,
+      status = @status
+  WHERE id = @id
+`);
+
 const selectDistinctSuppliersStmt = db.prepare(`
   SELECT DISTINCT supplier_name FROM expenses ORDER BY supplier_name COLLATE NOCASE
 `);
@@ -129,6 +140,21 @@ function findMatchingExpenseForDocument(supplierName, amount, expenseDate, docum
 
 function findById(expenseId) {
   return getExpenseByIdStmt.get({ id: expenseId }) || null;
+}
+
+function deleteExpense(expenseId) {
+  return deleteExpenseStmt.run({ id: expenseId }).changes > 0;
+}
+
+function updateExpense(expenseId, { supplierName, amount, expenseDate, status }) {
+  const result = updateExpenseStmt.run({
+    id: expenseId,
+    supplier_name: supplierName.trim(),
+    amount: normalizeAmount(amount),
+    expense_date: expenseDate.trim(),
+    status,
+  });
+  return result.changes > 0;
 }
 
 function listDistinctSuppliers() {
@@ -204,6 +230,8 @@ module.exports = {
   findMatchingExpense,
   findMatchingExpenseForDocument,
   findById,
+  updateExpense,
+  deleteExpense,
   listDistinctSuppliers,
   listAllIds,
   listExpenses,

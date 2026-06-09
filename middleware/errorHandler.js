@@ -6,6 +6,10 @@ function wantsJsonResponse(req) {
     return false;
   }
 
+  if (req.path.startsWith('/api/')) {
+    return true;
+  }
+
   if (
     req.method === 'GET' &&
     (req.path === '/get-expenses' || req.path === '/get-invoices')

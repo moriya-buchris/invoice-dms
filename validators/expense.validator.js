@@ -96,11 +96,37 @@ function parseListFilters(filters = {}) {
   };
 }
 
+function validateUpdateExpenseInput(input) {
+  const expenseDateInput = (input.expense_date || input.invoice_date)?.trim();
+
+  if (!input.supplier_name?.trim() || !expenseDateInput) {
+    throw new ValidationError('חסרים שדות חובה לעדכון.');
+  }
+
+  const parsedAmount = parseFloat(input.amount);
+  if (Number.isNaN(parsedAmount) || parsedAmount < 0) {
+    throw new ValidationError('סכום לא תקין.');
+  }
+
+  validateExpenseDateNotFuture(expenseDateInput);
+
+  const documentTypeRaw = input.document_type?.trim();
+  const documentType = documentTypeRaw ? validateDocumentType(documentTypeRaw) : null;
+
+  return {
+    supplierName: input.supplier_name.trim(),
+    amount: parsedAmount,
+    expenseDate: expenseDateInput,
+    documentType,
+  };
+}
+
 module.exports = {
   validateDateRange,
   validateFilterStatus,
   validateExpenseDateNotFuture,
   validateDocumentType,
   validateCreateExpenseInput,
+  validateUpdateExpenseInput,
   parseListFilters,
 };
